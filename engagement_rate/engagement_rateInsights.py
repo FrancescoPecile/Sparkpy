@@ -20,11 +20,11 @@ df3 = df1.join(df2, ['BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID'], 'full')
 df3.createOrReplaceTempView("input")
 
 df4 = spark.sql(" SELECT BRAND,WALL_ID,WALLGROUP_ID,CAMPAIGN_ID," +
-                " (100*(SUM(PRODUCT_CTR30)-SUM(PRODUCT_CTR29 ))/SUM(PRODUCT_CTR29 )) AS CTRDIFFERENCE," +
+                " (100*(SUM(ENGAGEMENT_RATE30)-SUM(ENGAGEMENT_RATE29))/SUM(ENGAGEMENT_RATE29)) AS ENGDIFFERENCE," +
                 " FROM input" +
-                " GROUP BY BRAND,WALL_ID, WALLGROUP_ID, CAMPAIGN_ID,CTRDIFFERENCE")
+                " GROUP BY BRAND,WALL_ID, WALLGROUP_ID, CAMPAIGN_ID,ENGDIFFERENCE")
 
-collectionName = "insightctrNEW"
+collectionName = "engagementRateInsights"
 dbMode = "append"
 
 df4.write.format("com.mongodb.spark.sql.DefaultSource") \

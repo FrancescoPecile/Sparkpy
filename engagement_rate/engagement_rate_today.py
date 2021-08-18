@@ -4,8 +4,8 @@ from pyspark.sql.types import *
 import datetime
 
 spark = SparkSession.builder.appName("myApp").master("local[*]") \
-    .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/Spark.product_ct30AAAA") \
-    .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/Spark.product_ct30AAAA") \
+    .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/Spark.engagement_rate") \
+    .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/Spark.engagement_rate") \
     .config('spark.jars.packages', 'org.mongodb.spark:mongo-spark-connector_2.11:2.3.2') \
     .getOrCreate()
 
@@ -41,24 +41,19 @@ df3 = spark.read.json(url + tomorrow + "/00/*")
 df4 = df1.unionByName(df2, allowMissingColumns=True)
 df5 = df4.unionByName(df3, allowMissingColumns=True)
 
-df7 = df5.filter('EVENT_TYPE=="product-impression" AND DAY=="30"') \
+df7 = df5.filter('EVENT_TYPE=="post-impression" AND DAY=="30"') \
     .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DAY') \
-    .count().withColumnRenamed("count", "IMPRESSIONS30")\
-    .withColumnRenamed("EVENT_TYPE", "EVENT_TYPE1")
+    .count().withColumnRenamed("count", "IMPRESSIONS30")
 
-df8 = df5.filter('EVENT_TYPE=="product-click" AND DAY=="30"') \
+df8 = df5.filter('EVENT_TYPE=="post-click" AND DAY=="30"') \
     .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DAY') \
-    .count().withColumnRenamed("count", "CLICKS30")\
-    .withColumnRenamed("EVENT_TYPE", "EVENT_TYPE2")
+    .count().withColumnRenamed("count", "CLICKS30")
 
 df9 = df7.join(df8, ['BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'DAY'], 'full')
 
-df9.createOrReplaceTempView("input")
-
 df10 = spark.sql("SELECT BRAND, WALL_ID, WALLGROUP_ID, CAMPAIGN_ID, DAY," +
-                 " SUM(IMPRESSIONS30)/SUM(CLICKS30) AS PRODUCT_CTR30 " +
+                 " SUM(IMPRESSIONS30)/SUM(CLICKS30) AS ENGAGEMENT_RATE30 " +
                  "from input " +
                  "GROUP BY BRAND, WALL_ID, WALLGROUP_ID, CAMPAIGN_ID, DAY")
 
 df10.write.format("mongo").mode("append").save()
-

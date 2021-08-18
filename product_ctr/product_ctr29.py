@@ -4,8 +4,8 @@ from pyspark.sql.types import *
 import datetime
 
 spark = SparkSession.builder.appName("myApp").master("local[*]") \
-    .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/Spark.BROAD7product_ctr") \
-    .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/Spark.BROAD7product_ctr") \
+    .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/Spark.product_ctrdivisionAAAA") \
+    .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/Spark.product_ctrdivisionAAAA") \
     .config('spark.jars.packages', 'org.mongodb.spark:mongo-spark-connector_2.11:2.3.2') \
     .getOrCreate()
 
@@ -41,16 +41,23 @@ df3 = spark.read.json(url + tomorrow + "/00/*")
 df4 = df1.unionByName(df2, allowMissingColumns=True)
 df5 = df4.unionByName(df3, allowMissingColumns=True)
 
-df6 = df5.filter('DAY=="29"')
+df7 = df5.filter('EVENT_TYPE=="product-impression" AND DAY=="29"') \
+    .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DAY') \
+    .count().withColumnRenamed("count", "IMPRESSIONS29")\
+    .withColumnRenamed("EVENT_TYPE", "EVENT_TYPE1")
 
-df7 = df6.filter('EVENT_TYPE=="product-impression"').withColumn('DATE', col('ISOTIMESTAMP').cast('date')) \
-    .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DATE') \
-    .count().withColumnRenamed("count", "IMPRESSIONS").drop("EVENT_TYPE")
+df8 = df5.filter('EVENT_TYPE=="product-click" AND DAY=="29"') \
+    .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DAY') \
+    .count().withColumnRenamed("count", "CLICKS29")\
+    .withColumnRenamed("EVENT_TYPE", "EVENT_TYPE2")
 
-df8 = df6.filter('EVENT_TYPE=="product-click"'). \
-    groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE') \
-    .count().selectExpr("count as CLICKS")
+df9 = df7.join(df8, ['BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'DAY'], 'full')
 
-df9 = df8.join(broadcast(df7), how='inner')
+df9.createOrReplaceTempView("input")
 
-df9.write.format("mongo").mode("append").save()
+df10 = spark.sql("SELECT BRAND, WALL_ID, WALLGROUP_ID, CAMPAIGN_ID, DAY," +
+                 " SUM(IMPRESSIONS29)/SUM(CLICKS29) AS PRODUCT_CTR29 " +
+                 "from input " +
+                 "GROUP BY BRAND, WALL_ID, WALLGROUP_ID, CAMPAIGN_ID, DAY")
+
+df10.write.format("mongo").mode("append").save()

@@ -41,16 +41,19 @@ df3 = spark.read.json(url + tomorrow + "/00/*")
 df4 = df1.unionByName(df2, allowMissingColumns=True)
 df5 = df4.unionByName(df3, allowMissingColumns=True)
 
-df6 = df5.filter('DAY=="30"')
+df7 = df5.filter('EVENT_TYPE=="post-impression" AND DAY=="29"') \
+    .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DAY') \
+    .count().withColumnRenamed("count", "IMPRESSIONS30")
 
+df8 = df5.filter('EVENT_TYPE=="post-click" AND DAY=="29"') \
+    .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DAY') \
+    .count().withColumnRenamed("count", "CLICKS30")
 
-df7 = df6.filter('EVENT_TYPE=="post-impression"').withColumn('DATE', col('ISOTIMESTAMP').cast('date')) \
-    .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DATE') \
-    .count().withColumnRenamed("count", "IMPRESSIONS").drop("EVENT_TYPE")
+df9 = df7.join(df8, ['BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'DAY'], 'full')
 
-df8 = df6.filter('EVENT_TYPE=="post-click"').groupby('EVENT_TYPE') \
-    .count().selectExpr("count as CLICKS")
+df10 = spark.sql("SELECT BRAND, WALL_ID, WALLGROUP_ID, CAMPAIGN_ID, DAY," +
+                 " SUM(IMPRESSIONS30)/SUM(CLICKS30) AS ENGAGEMENT_RATE29" +
+                 "from input " +
+                 "GROUP BY BRAND, WALL_ID, WALLGROUP_ID, CAMPAIGN_ID, DAY")
 
-df9 = df7.join(broadcast(df8), how='inner')
-
-df9.write.format("mongo").mode("append").save()
+df10.write.format("mongo").mode("append").save()

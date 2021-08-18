@@ -15,22 +15,18 @@ spark.sparkContext.addPyFile("wall_impressions29.py")
 df1 = wall_impressions29.df7
 df2 = wall_impressions30.df7
 
-df3 = df1.join(df2)
-df3.show()
+df3 = df1.join(df2, ['BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID'], 'full')
 
 df3.createOrReplaceTempView("input")
 
 df4 = spark.sql("SELECT BRAND ,WALL_ID ,WALLGROUP_ID ,CAMPAIGN_ID,EVENT_TYPE," +
                 " (100*(SUM(IMPRESSIONS30)-SUM(IMPRESSIONS29))/SUM(IMPRESSIONS29))AS DIFFERENCE" +
                 " FROM input" +
-                " WHERE BRAND = BRAND29 AND WALL_ID = WALL_ID29 AND WALLGROUP_ID = WALLGROUP_ID29" +
-                " AND CAMPAIGN_ID = CAMPAIGN_ID29 AND EVENT_TYPE = EVENT_TYPE29" +
+                " WHERE EVENT_TYPE = EVENT_TYPE29" +
                 " GROUP BY BRAND,WALL_ID, WALLGROUP_ID, CAMPAIGN_ID, EVENT_TYPE")
 
-collectionName = "insights2930"
+collectionName = "insights3"
 dbMode = "append"
 df4.write.format("com.mongodb.spark.sql.DefaultSource") \
     .mode(dbMode).option("database", "ls-analytics").option("collection", collectionName) \
     .option("ordered", "false").save()
-
-df4.write.format("mongo").mode("append").save()

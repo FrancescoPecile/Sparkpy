@@ -4,8 +4,8 @@ from pyspark.sql.types import *
 import datetime
 
 spark = SparkSession.builder.appName("myApp").master("local[*]") \
-    .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/Spark.product_ctrdivisionAAAA") \
-    .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/Spark.product_ctrdivisionAAAA") \
+    .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/Spark.product_ctrdivisionFINAL") \
+    .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/Spark.product_ctrdivisionFINAL") \
     .config('spark.jars.packages', 'org.mongodb.spark:mongo-spark-connector_2.11:2.3.2') \
     .getOrCreate()
 

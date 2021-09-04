@@ -25,37 +25,38 @@ jsonSchema = spark.read.option("multiLine", True).json("s3a://lsred-analytics/da
 
 df3 = spark.readStream.schema(jsonSchema).json("s3a://lsred-analytics/data-json/2021/06/30/01")
 
-# df.writeStream
-#       .option("checkpointLocation", "s3a://checkpoint/dir")
-#       .option("tableSpec","my-project:my_dataset.my_table")
-#       .format("com.samelamin.spark.bigquery")
-#       .start()
+df7 = df3.filter('EVENT_TYPE=="product-impression" AND DAY=="29"') \
+    .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DAY') \
+    .count().withColumnRenamed("count", "IMPRESSIONS29")\
+    .withColumnRenamed("EVENT_TYPE", "EVENT_TYPE1")
 
-df7 = df3.filter('EVENT_TYPE=="wall-impression"').withColumn('DATE', col('ISOTIMESTAMP').cast('timestamp')) \
-    .withWatermark("DATE", "60 minutes") \
-    .groupby(window(df3.ISOTIMESTAMP, "1 day", "1 day"), 'BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID',
-             'EVENT_TYPE', 'DAY') \
-    .count().withColumnRenamed("count", "IMPRESSIONS29") \
-    .withColumnRenamed("EVENT_TYPE", "EVENT_TYPE29")
+df8 = df3.filter('EVENT_TYPE=="product-click" AND DAY=="29"') \
+    .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DAY') \
+    .count().withColumnRenamed("count", "CLICKS29")\
+    .withColumnRenamed("EVENT_TYPE", "EVENT_TYPE2")
 
+df9 = df7.join(df8, ['BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'DAY'], 'full')
+
+df9.createOrReplaceTempView("input")
+
+df10 = spark.sql("SELECT BRAND, WALL_ID, WALLGROUP_ID, CAMPAIGN_ID, DAY," +
+                 " SUM(IMPRESSIONS29)/SUM(CLICKS29) AS PRODUCT_CTR29 " +
+                 "from input " +
+                 "GROUP BY BRAND, WALL_ID, WALLGROUP_ID, CAMPAIGN_ID, DAY")
 
 class ForeachWriter:
 
     def open(self, partition_id, epoch_id):
         self.connection = MongoClient("mongodb://127.0.0.1/")
-        self.db = self.connection['wallStreamingLegit']
-        self.coll = self.db['windowDIZIONARIO']
+        self.db = self.connection['CTR']
+        self.coll = self.db['ctrStream']
         print(epoch_id)
         print(partition_id)
         return True
 
     def process(self, row):
         # Write row to connection. This method is NOT optional in Python.
-        # self.coll.insert_one(row.asDict())
-        dizionario = row.asDict()
-        self.coll.replace_one({"BRAND": dizionario["BRAND"],"WALL_ID": dizionario["WALL_ID"],
-                              "WALLGROUP_ID": dizionario["WALLGROUP_ID"],
-                              "CAMPAIGN_ID": dizionario["CAMPAIGN_ID"],"DAY": dizionario["DAY"]},dizionario,upsert=True)
+        self.coll.insert_one(row.asDict())
 
     def close(self, error):
         # Close the connection. This method in optional in Python.

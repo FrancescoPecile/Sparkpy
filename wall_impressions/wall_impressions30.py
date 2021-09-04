@@ -44,7 +44,7 @@ df5 = df4.unionByName(df3, allowMissingColumns=True)
 
 df6 = df5.filter('DAY=="30"')
 
-df7 = df6.filter('EVENT_TYPE=="post-impression"').withColumn('DATE', col('ISOTIMESTAMP').cast('date')) \
+df7 = df6.filter('EVENT_TYPE=="wall-impression"').withColumn('DATE', col('ISOTIMESTAMP').cast('date')) \
     .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DATE') \
     .count().withColumnRenamed("count", "IMPRESSIONS30")
 

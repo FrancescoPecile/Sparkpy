@@ -4,6 +4,8 @@ from pyspark.sql.types import *
 import datetime
 
 spark = SparkSession.builder.appName("myApp").master("local[*]") \
+    .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/Spark.wall_impressions2") \
+    .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/Spark.wall_impressions2") \
     .config('spark.jars.packages', 'org.mongodb.spark:mongo-spark-connector_2.11:2.3.2') \
     .getOrCreate()
 
@@ -31,46 +33,18 @@ tomorrow = tomorrow_datetime.strftime("%Y/%m/%d")
 yesterday = yesterday_datetime.strftime("%Y/%m/%d")
 url = "s3a://lsred-analytics/data-json/"
 
-jsonSchema = spark.read.option("multiLine", True).json("s3a://lsred-analytics/data-json/2021/test/*").schema
+df1 = spark.read.json(url + today + "/*")
+df2 = spark.read.json(url + yesterday + "/23/*")
+df3 = spark.read.json(url + tomorrow + "/00/*")
 
-df3 = spark.readStream.schema(jsonSchema).json("s3a://lsred-analytics/data-json/2021/test/*")
+df4 = df1.unionByName(df2, allowMissingColumns=True)
+df5 = df4.unionByName(df3, allowMissingColumns=True)
 
-# df.writeStream
-#       .option("checkpointLocation", "s3a://checkpoint/dir")
-#       .option("tableSpec","my-project:my_dataset.my_table")
-#       .format("com.samelamin.spark.bigquery")
-#       .start()
+df6 = df5.filter('DAY=="30"')
 
-df7 = df3.filter('EVENT_TYPE=="wall-impression"').withColumn('DATE', col('ISOTIMESTAMP').cast('date')) \
+df7 = df6.filter('EVENT_TYPE=="wall-impression"').withColumn('DATE', col('ISOTIMESTAMP').cast('date')) \
     .groupby('BRAND', 'WALL_ID', 'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE', 'DATE') \
-    .count().withColumnRenamed("count", "IMPRESSIONS29") \
-    .withColumnRenamed("EVENT_TYPE", "EVENT_TYPE29")
+    .count().withColumnRenamed("count", "IMPRESSIONS29")
 
+df7.write.format("mongo").mode("overwrite").save()
 
-# df7 = df3.filter('EVENT_TYPE=="wall-impression"').withColumn("isotimestamp",
-#         to_timestamp(col("ISOTIMESTAMP")))\
-#     .withWatermark('isotimestamp', "10 minutes") \
-#     .groupby(window('isotimestamp', "10 minutes", "5 minutes"), 'BRAND', 'WALL_ID',
-#              'WALLGROUP_ID', 'CAMPAIGN_ID', 'EVENT_TYPE') \
-#     .count().withColumnRenamed("count", "IMPRESSIONS29") \
-#     .withColumnRenamed("EVENT_TYPE", "EVENT_TYPE29")
-
-
-# collectionName = "streamingForever"
-# dbMode = "append"
-
-# query = df7 \
-#     .writeStream \
-#     .outputMode("complete") \
-#     .format("console") \
-#     .start()
-
-def write_mongo_row(df):
-    mongoURL = "mongodb://127.0.0.1/Spark.streamingForever"
-    df.write.format("mongo").outputMode("append").option("uri", mongoURL).save()
-    pass
-
-
-query = df7.writeStream.foreach(write_mongo_row).start()
-
-query.awaitTermination()
